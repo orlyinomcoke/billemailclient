@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   const and: Prisma.ContactWhereInput[] = [];
   if (q) and.push({
     OR: (["name", "firstName", "lastName", "email", "company", "phone", "status"] as const)
-      .map(f => ({ [f]: { contains: q, mode: "insensitive" } })),
+      .map(f => ({ [f]: { contains: q } })),
   });
   const biz = p.get("businessId");
   if (biz) and.push({ businessId: biz === "none" ? null : biz });

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { db } from "./db";
 import { graph, MAILBOX } from "./graph";
 import { classifyPending } from "./classify";
@@ -49,7 +50,7 @@ export async function syncMailbox(budgetMs = 20_000) {
           throw e;
         }
         for (const m of page.value) {
-          if (m["@removed"]) { await db.message.deleteMany({ where: { graphId: m.id } }); continue; }
+          if (m["@removed"]) { await db.message.deleteMany({ where: { graphKey: graphKey(m.id) } }); continue; }
           await upsertMessage(m, f.direction);
           synced++;
         }
@@ -63,7 +64,7 @@ export async function syncMailbox(budgetMs = 20_000) {
       if (!done) break;
     }
     // Sort newly synced mail into Inbox / Newsletters / Auto-replies
-    const classifyUntil = Date.now() + 30_000;
+    const classifyUntil = Date.now() + 15_000; // keep each request well under host timeouts
     while (Date.now() < classifyUntil && (await classifyPending()).remaining > 0);
   } finally {
     lock.mailSyncRunning = false;
@@ -111,8 +112,8 @@ export async function syncLatest(n: number) {
     .slice(0, n);
   for (const { m, direction } of newest) await upsertMessage(m, direction);
 
-  const keep = newest.map(x => x.m.id);
-  const removed = await db.message.deleteMany({ where: { graphId: { notIn: keep }, businessId: null } });
+  const keep = newest.map(x => graphKey(x.m.id));
+  const removed = await db.message.deleteMany({ where: { graphKey: { notIn: keep }, businessId: null } });
   await db.contact.deleteMany({ where: { messages: { none: {} }, doNotContact: false, businessId: null } });
   return { synced: newest.length, removed: removed.count };
 }
@@ -139,13 +140,25 @@ async function upsertMessage(m: any, direction: "in" | "out") {
   const data = {
     conversationId: m.conversationId, subject: m.subject || "(no subject)",
     fromEmail: from.address?.toLowerCase() ?? "", fromName: from.name,
-    toEmails: to, ccEmails: cc, bodyHtml: m.body?.content ?? "",
+    toEmails: to, ccEmails: cc, bodyHtml: capBody(m.body?.content ?? ""),
     preview: m.bodyPreview ?? "", receivedAt: new Date(m.receivedDateTime),
     isRead: !!m.isRead, direction, contactId,
   };
   await db.message.upsert({
-    where: { graphId: m.id },
-    create: { graphId: m.id, ...data, businessId },
+    where: { graphKey: graphKey(m.id) },
+    create: { graphKey: graphKey(m.id), graphId: m.id, ...data, businessId },
     update: data, // keep business assigned in app
   });
 }
+
+// MySQL rejects packets above max_allowed_packet (often 16MB on shared hosting). Emails that big are
+// almost always inline base64 images, so drop those first, then hard-cap as a last resort.
+const MAX_BODY = 4 * 1024 * 1024;
+function capBody(html: string) {
+  if (html.length <= MAX_BODY) return html;
+  const slim = html.replace(/src=(["'])data:[^"']{1000,}\1/gi, 'src="" alt="[image removed: too large]"');
+  return slim.length <= MAX_BODY ? slim : slim.slice(0, MAX_BODY) + "<p><em>[Message truncated — open in Outlook to see all of it]</em></p>";
+}
+
+// Case-safe unique key for a Microsoft Graph message ID (see schema.prisma)
+export const graphKey = (id: string) => createHash("sha256").update(id).digest("hex");

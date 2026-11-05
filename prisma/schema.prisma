@@ -2,8 +2,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// MySQL (Hostinger). Text sizes are explicit because MySQL's default string column is VARCHAR(191).
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -13,59 +14,64 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  role         Role     @default(STAFF)
-  createdAt    DateTime @default(now())
+  id           String    @id @default(cuid())
+  email        String    @unique @db.VarChar(255)
+  name         String    @db.VarChar(255)
+  passwordHash String    @db.VarChar(255)
+  role         Role      @default(STAFF)
+  createdAt    DateTime  @default(now())
   sentMessages SentLog[]
 }
 
 // One of the client's businesses, used as the category on emails
 model Business {
   id       String    @id @default(cuid())
-  name     String    @unique
-  color    String    @default("#3b82f6")
+  name     String    @unique @db.VarChar(255)
+  color    String    @default("#3b82f6") @db.VarChar(32)
   messages Message[]
   contacts Contact[]
 }
 
-// Every external person who appears in mail gets their own "folder"
+// Every external person who appears in mail
 model Contact {
   id           String    @id @default(cuid())
-  email        String    @unique
-  name         String?
-  firstName    String?
-  lastName     String?
-  phone        String?   // extracted from email signatures, editable
-  company      String?   // guessed from email domain, editable
-  status       String?
+  email        String    @unique @db.VarChar(255)
+  name         String?   @db.VarChar(512)
+  firstName    String?   @db.VarChar(255)
+  lastName     String?   @db.VarChar(255)
+  phone        String?   @db.VarChar(64)  // extracted from email signatures, editable
+  company      String?   @db.VarChar(255) // guessed from email domain, editable
+  status       String?   @db.VarChar(64)
   extractedAt  DateTime? // when details were last auto-extracted
-  mailRule     String?   // "inbox" | "newsletter": manual override for where this person's mail goes
+  mailRule     String?   @db.VarChar(16)  // "inbox" | "newsletter": manual override for where this person's mail goes
   doNotContact Boolean   @default(false)
-  dncReason    String?
+  dncReason    String?   @db.Text
   dncSetAt     DateTime?
   businessId   String?   // default business for this person
   business     Business? @relation(fields: [businessId], references: [id])
   messages     Message[]
+
+  @@index([businessId])
 }
 
 model Message {
   id             String    @id @default(cuid())
-  graphId        String    @unique
-  conversationId String?
-  subject        String
-  fromEmail      String
-  fromName       String?
-  toEmails       String[]
-  ccEmails       String[]
-  bodyHtml       String
-  preview        String
+  // Microsoft's IDs are case-sensitive but MySQL compares text case-insensitively,
+  // so uniqueness is enforced on a SHA-256 hex of the ID instead (see graphKey() in lib/sync.ts)
+  graphKey       String    @unique @db.Char(64)
+  graphId        String    @db.Text
+  conversationId String?   @db.VarChar(255)
+  subject        String    @db.Text
+  fromEmail      String    @db.VarChar(255)
+  fromName       String?   @db.VarChar(512)
+  toEmails       Json      // string[]
+  ccEmails       Json      // string[]
+  bodyHtml       String    @db.LongText
+  preview        String    @db.Text
   receivedAt     DateTime
   isRead         Boolean   @default(false)
-  direction      String    // "in" | "out"
-  category       String?   // "inbox" | "newsletter" | "auto" (null = not classified yet)
+  direction      String    @db.VarChar(8)  // "in" | "out"
+  category       String?   @db.VarChar(16) // "inbox" | "newsletter" | "auto" (null = not classified yet)
   contactId      String?
   contact        Contact?  @relation(fields: [contactId], references: [id])
   businessId     String?
@@ -81,13 +87,15 @@ model SentLog {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  to        String[]
-  subject   String
+  to        Json     // string[]
+  subject   String   @db.Text
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model SyncState {
-  id        String   @id
-  deltaLink String?
+  id        String   @id @db.VarChar(32)
+  deltaLink String?  @db.Text
   updatedAt DateTime @updatedAt
 }

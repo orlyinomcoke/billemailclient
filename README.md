@@ -1,31 +1,68 @@
-# MailHub — Phase 1
+# MailHub
 
-Web inbox for a Microsoft 365 mailbox: per-person folders, business categories, sending, and Do-Not-Contact.
+Web inbox for a Microsoft 365 mailbox: business tags, Do-Not-Contact, Contacts table,
+and automatic sorting of newsletters and auto-replies. Next.js 15 + Prisma + MySQL.
 
-## 1. Azure setup (once, needs the client's M365 admin)
+## Deploying on Hostinger (web / cloud hosting)
+
+### 1. Create the database
+hPanel → **Databases → MySQL Databases** → create a database and user. Note the database name,
+user, password and host (usually `localhost`).
+
+### 2. Create the Node.js app
+hPanel → **Websites → Add website → Node.js app** → **Import from GitHub** → pick this repo, branch `main`.
+
+| Setting | Value |
+|---|---|
+| Node version | 20 or 22 |
+| Build command | `npm run build` |
+| Start command | `npm start` |
+
+### 3. Environment variables
+Add these in the app's **Environment variables** section:
+
+| Name | Value |
+|---|---|
+| `DATABASE_URL` | `mysql://USER:PASSWORD@HOST:3306/DATABASE` (URL-encode special characters in the password) |
+| `AUTH_SECRET` | long random string (`openssl rand -hex 32`) |
+| `CRON_SECRET` | another long random string |
+| `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET` | from the Azure app registration |
+| `MS_MAILBOX` | the mailbox address, e.g. `owner@clientdomain.com` |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | first admin login (created automatically on first start) |
+| `PAUSE_IMPORT` | `0` to import the whole mailbox, `1` to only sync new mail |
+
+On start, the app creates/updates its database tables and the admin login automatically
+(`prisma db push` + `prisma/seed.mjs`), so no manual database steps are needed.
+
+### 4. Keep mail syncing when nobody has the app open
+hPanel → **Advanced → Cron Jobs** → every 5 minutes:
+```
+curl -s -X POST "https://YOUR-SITE/api/sync?key=YOUR_CRON_SECRET"
+```
+Each call imports ~20 seconds' worth of mail; while someone has the app open it also syncs every 2 minutes.
+
+### 5. Updates
+Push to `main` on GitHub, then redeploy from hPanel (or enable auto-deploy).
+
+## Azure setup (once, needs the client's M365 admin)
 1. entra.microsoft.com → App registrations → New registration ("MailHub").
 2. API permissions → Microsoft Graph → **Application**: `Mail.ReadWrite`, `Mail.Send` → **Grant admin consent**.
-3. Certificates & secrets → New client secret.
-4. Copy Tenant ID, Client ID, secret into `.env`.
-5. Recommended: restrict the app to only the client's mailbox with an Exchange
-   Application Access Policy (`New-ApplicationAccessPolicy`).
+3. Certificates & secrets → New client secret → copy the **Value**.
+4. Recommended: restrict the app to the one mailbox with an Exchange Application Access Policy
+   (`New-ApplicationAccessPolicy`).
 
-## 2. Run
+## Local development
 ```bash
-cp .env.example .env   # fill in
+cp .env.example .env   # fill in; needs a local MySQL
 npm install
-npm run db:push
-npm run db:seed        # creates the admin login
 npm run dev
 ```
-Sign in, add businesses (＋ in sidebar), press ⟳ to sync.
-
-## 3. Auto-sync
-Hit `POST /api/sync?key=CRON_SECRET` every few minutes (Vercel Cron, or system cron with curl).
 
 ## How it works
-- **People folders**: every external address becomes a Contact; click one to see only their mail.
-- **Business category**: set per email, or "Apply to all mail from this person" so their future mail auto-tags.
-- **Do Not Contact**: flagged people show a red DNC tag; the send API refuses any email to them.
-- Categories/DNC live only in this app's database — Outlook itself is untouched.
-- Adding staff: insert users (role STAFF) — a user admin screen is a good Phase 2 item.
+- **Sync**: Microsoft Graph delta queries over Inbox + Sent Items; resumable, so nothing is missed.
+  Microsoft's message IDs are case-sensitive, so they are stored with a SHA-256 key (MySQL compares text case-insensitively).
+- **Folders**: Inbox (real email), Sent, Newsletters, Auto-replies, Assigned / Unassigned, per-business.
+  Anyone the owner has emailed always lands in Inbox; "Move to Inbox/Newsletters" sets a rule for that sender.
+- **Contacts**: names, phone (from signatures), company (from domain), status, business, Do-Not-Contact.
+- **Do Not Contact**: the send API refuses any To/Cc recipient flagged DNC (HTTP 409).
+- Tags, folders and DNC live only in this app's database; the Outlook mailbox is never modified (except mail sent).

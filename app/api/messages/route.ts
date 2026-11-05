@@ -13,9 +13,9 @@ export async function GET(req: Request) {
       direction: p.get("direction") || undefined,
       category: p.get("category") || undefined,
       OR: q ? [
-        { subject: { contains: q, mode: "insensitive" } },
-        { preview: { contains: q, mode: "insensitive" } },
-        { fromEmail: { contains: q, mode: "insensitive" } },
+        { subject: { contains: q } },
+        { preview: { contains: q } },
+        { fromEmail: { contains: q } },
       ] : undefined,
     },
     orderBy: { receivedAt: "desc" },
