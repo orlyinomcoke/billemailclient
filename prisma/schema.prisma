@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(STAFF)
+  createdAt    DateTime @default(now())
+  sentMessages SentLog[]
+}
+
+// One of the client's businesses, used as the category on emails
+model Business {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  color    String    @default("#3b82f6")
+  messages Message[]
+  contacts Contact[]
+}
+
+// Every external person who appears in mail gets their own "folder"
+model Contact {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  doNotContact Boolean   @default(false)
+  dncReason    String?   @db.Text
+  dncSetAt     DateTime?
+  businessId   String?   // default business for this person
+  business     Business? @relation(fields: [businessId], references: [id])
+  messages     Message[]
+}
+
+model Message {
+  id             String    @id @default(cuid())
+  graphId        String    @unique @db.VarChar(255)
+  conversationId String?
+  subject        String    @db.VarChar(1000)
+  fromEmail      String
+  fromName       String?
+  toEmails       Json
+  ccEmails       Json
+  bodyHtml       String    @db.LongText
+  preview        String    @db.Text
+  receivedAt     DateTime
+  isRead         Boolean   @default(false)
+  direction      String    // "in" | "out"
+  contactId      String?
+  contact        Contact?  @relation(fields: [contactId], references: [id])
+  businessId     String?
+  business       Business? @relation(fields: [businessId], references: [id])
+
+  @@index([contactId])
+  @@index([businessId])
+  @@index([receivedAt])
+}
+
+model SentLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  to        Json
+  subject   String   @db.VarChar(1000)
+  createdAt DateTime @default(now())
+}
+
+model SyncState {
+  id        String   @id
+  deltaLink String?   @db.Text
+  updatedAt DateTime @updatedAt
+}

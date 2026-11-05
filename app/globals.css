@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #1f2937; background: #f3f4f6; }
+button { font: inherit; cursor: pointer; border: 1px solid #d1d5db; background: #fff; border-radius: 6px; padding: 6px 10px; }
+button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+button.danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+input, select, textarea { font: inherit; border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 8px; width: 100%; }
+.app { display: grid; grid-template-columns: 260px 380px 1fr; height: 100vh; }
+.pane { overflow-y: auto; border-right: 1px solid #e5e7eb; background: #fff; }
+.side { background: #111827; color: #e5e7eb; padding: 12px; }
+.side h4 { margin: 16px 0 6px; font-size: 11px; text-transform: uppercase; color: #9ca3af; letter-spacing: .05em; }
+.side .item { padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 6px; }
+.side .item:hover, .side .item.on { background: #374151; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.badge { background: #2563eb; color: #fff; border-radius: 10px; padding: 0 7px; font-size: 11px; }
+.dnc { background: #dc2626; color: #fff; border-radius: 4px; padding: 0 5px; font-size: 10px; font-weight: 600; }
+.row { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer; }
+.row.unread .subj { font-weight: 700; }
+.row.on { background: #eff6ff; }
+.muted { color: #6b7280; font-size: 12px; }
+.reader { padding: 20px; background: #fff; overflow-y: auto; }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.modal { position: fixed; inset: 0; background: #0006; display: grid; place-items: center; }
+.modal > div { background: #fff; width: min(640px, 94vw); border-radius: 10px; padding: 18px; display: grid; gap: 10px; }
+.err { background: #fef2f2; color: #991b1b; padding: 8px; border-radius: 6px; }
+@media (max-width: 900px) { .app { grid-template-columns: 1fr; } .side { display: none; } }
