@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(STAFF)
+  createdAt    DateTime @default(now())
+  sentMessages SentLog[]
+}
+
+// One of the client's businesses, used as the category on emails
+model Business {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  color    String    @default("#3b82f6")
+  messages Message[]
+  contacts Contact[]
+}
+
+// Every external person who appears in mail gets their own "folder"
+model Contact {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  firstName    String?
+  lastName     String?
+  phone        String?   // extracted from email signatures, editable
+  company      String?   // guessed from email domain, editable
+  status       String?
+  extractedAt  DateTime? // when details were last auto-extracted
+  mailRule     String?   // "inbox" | "newsletter": manual override for where this person's mail goes
+  doNotContact Boolean   @default(false)
+  dncReason    String?
+  dncSetAt     DateTime?
+  businessId   String?   // default business for this person
+  business     Business? @relation(fields: [businessId], references: [id])
+  messages     Message[]
+}
+
+model Message {
+  id             String    @id @default(cuid())
+  graphId        String    @unique
+  conversationId String?
+  subject        String
+  fromEmail      String
+  fromName       String?
+  toEmails       String[]
+  ccEmails       String[]
+  bodyHtml       String
+  preview        String
+  receivedAt     DateTime
+  isRead         Boolean   @default(false)
+  direction      String    // "in" | "out"
+  category       String?   // "inbox" | "newsletter" | "auto" (null = not classified yet)
+  contactId      String?
+  contact        Contact?  @relation(fields: [contactId], references: [id])
+  businessId     String?
+  business       Business? @relation(fields: [businessId], references: [id])
+
+  @@index([contactId])
+  @@index([businessId])
+  @@index([receivedAt])
+  @@index([category])
+}
+
+model SentLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  to        String[]
+  subject   String
+  createdAt DateTime @default(now())
+}
+
+model SyncState {
+  id        String   @id
+  deltaLink String?
+  updatedAt DateTime @updatedAt
+}
