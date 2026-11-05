@@ -31,8 +31,11 @@ Add these in the app's **Environment variables** section:
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | first admin login (created automatically on first start) |
 | `PAUSE_IMPORT` | `0` to import the whole mailbox, `1` to only sync new mail |
 
-On start, the app creates/updates its database tables and the admin login automatically
+During the build, the app creates/updates its database tables and the admin login automatically
 (`prisma db push` + `prisma/seed.mjs`), so no manual database steps are needed.
+
+After deploying, open `https://YOUR-SITE/api/health` — it reports whether the database connects,
+the tables exist, an admin exists, and which environment variables are set (yes/no only).
 
 ### 4. Keep mail syncing when nobody has the app open
 hPanel → **Advanced → Cron Jobs** → every 5 minutes:
