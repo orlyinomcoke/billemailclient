@@ -68,27 +68,39 @@ export function cutQuoted(text: string) {
 const PHONE_LABEL = /(tel|telephone|phone|ph|mob|mobile|cell|direct|office|work|landline|whatsapp|viber|\b[mtpw])\s*[:.#]?\s*$/i;
 const CANDIDATE = /\+?\(?\d[\d\s().-]{6,20}\d/g;
 
+// Phone-shaped values on one line that look like real phone numbers, with a confidence score
+function phonesOnLine(line: string, exclude: Set<string>) {
+  const out: { v: string; digits: string; score: number }[] = [];
+  for (const m of line.matchAll(CANDIDATE)) {
+    const raw = m[0].trim();
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 15) continue;
+    if (/^\d{4}[-.]\d{2}[-.]\d{2}$|^\d{1,2}[-.]\d{1,2}[-.]\d{2,4}$/.test(raw)) continue; // dates
+    const before = line.slice(Math.max(0, (m.index ?? 0) - 20), m.index);
+    if (/fax/i.test(before)) continue;
+    if (exclude.has(digits)) continue; // the mailbox owner's own number
+    const labeled = PHONE_LABEL.test(before);
+    const formatted = raw.startsWith("+") || /[\s().-]/.test(raw);
+    if (!labeled && !formatted) continue; // bare digit runs are usually order/reference numbers
+    out.push({ v: raw.replace(/\s+/g, " "), digits, score: (labeled ? 3 : 0) + (raw.startsWith("+") ? 1 : 0) });
+  }
+  return out;
+}
+
 // Looks at the last lines (the signature area) for something phone-shaped
 export function findPhone(text: string, exclude: Set<string> = new Set()) {
-  const lines = text.split("\n").slice(-25);
   let best: { v: string; score: number } | null = null;
-  for (const line of lines) {
-    for (const m of line.matchAll(CANDIDATE)) {
-      const raw = m[0].trim();
-      const digits = raw.replace(/\D/g, "");
-      if (digits.length < 8 || digits.length > 15) continue;
-      if (/^\d{4}[-.]\d{2}[-.]\d{2}$|^\d{1,2}[-.]\d{1,2}[-.]\d{2,4}$/.test(raw)) continue; // dates
-      const before = line.slice(Math.max(0, (m.index ?? 0) - 20), m.index);
-      if (/fax/i.test(before)) continue;
-      if (exclude.has(digits)) continue; // the mailbox owner's own number
-      const labeled = PHONE_LABEL.test(before);
-      const formatted = raw.startsWith("+") || /[\s().-]/.test(raw);
-      if (!labeled && !formatted) continue; // bare digit runs are usually order/reference numbers
-      const score = (labeled ? 3 : 0) + (raw.startsWith("+") ? 1 : 0);
-      if (!best || score > best.score) best = { v: raw.replace(/\s+/g, " "), score };
-    }
-  }
+  for (const line of text.split("\n").slice(-25))
+    for (const p of phonesOnLine(line, exclude)) if (!best || p.score > best.score) best = p;
   return best?.v ?? null;
+}
+
+// Every distinct phone number anywhere in the text, most confident first
+export function findAllPhones(text: string, exclude: Set<string> = new Set(), max = 4) {
+  const found = new Map<string, { v: string; score: number }>();
+  for (const line of text.split("\n"))
+    for (const p of phonesOnLine(line, exclude)) if (!found.has(p.digits)) found.set(p.digits, p);
+  return [...found.values()].sort((a, b) => b.score - a.score).slice(0, max).map(p => p.v);
 }
 
 const lock = globalThis as unknown as { contactExtractRunning?: boolean };
@@ -132,7 +144,7 @@ export async function extractBatch(limit = 300) {
 
 // Numbers in the mailbox owner's own signature (from their sent mail). These show up inside
 // quoted replies from other people, so they must never be assigned to a contact.
-async function ownPhones() {
+export async function ownPhones() {
   const sent = await db.message.findMany({
     where: { direction: "out" }, orderBy: { receivedAt: "desc" }, take: 100, select: { bodyHtml: true },
   });

@@ -68,7 +68,7 @@ export default function Mail({ user }: { user: { name: string; role: string } })
   const [biz, setBiz] = useState<Business[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [counts, setCounts] = useState<{ inbox: number; newsletter: number; auto: number; business: Record<string, number> }>({ inbox: 0, newsletter: 0, auto: 0, business: {} });
-  const [view, setView] = useState<"mail" | "contacts">("mail");
+  const [view, setView] = useState<"mail" | "contacts" | "autoContacts">("mail");
   const [filter, setFilter] = useState<Filter>(FOLDERS.inbox);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<any>(null);
@@ -176,6 +176,7 @@ export default function Mail({ user }: { user: { name: string; role: string } })
         {folderNav("assigned", I.tag)}
         {folderNav("unassigned", I.layers)}
         <NavItem on={view === "contacts"} icon={I.users} label="Contacts" onClick={() => { setView("contacts"); setOpen(null); }} />
+        <NavItem on={view === "autoContacts"} icon={I.auto} label="Contacts from Auto Replies" onClick={() => { setView("autoContacts"); setOpen(null); }} />
 
         <div className="section">
           <span>Businesses</span>
@@ -211,7 +212,7 @@ export default function Mail({ user }: { user: { name: string; role: string } })
         </div>
       </aside>
 
-      {view === "contacts" ? <Contacts biz={biz} /> : <>
+      {view !== "mail" ? <Contacts key={view} biz={biz} mode={view === "autoContacts" ? "auto" : "all"} /> : <>
       {/* ---------- Message list ---------- */}
       <section className="list">
         <header className="list-head">

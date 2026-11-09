@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
-const TEXT_FIELDS = ["name", "firstName", "lastName", "phone", "company", "status"] as const;
+const TEXT_FIELDS = ["name", "firstName", "lastName", "phone", "company", "status", "autoEmails", "autoPhones"] as const;
 
 // PATCH { name, firstName, lastName, phone, company, status, businessId, applyToMessages, doNotContact, dncReason }
 // applyToMessages: also tag all of this person's emails with businessId (same as "Apply to all mail from this person")

@@ -2,12 +2,14 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { AUTOMATED } from "@/lib/extract";
+import { SYSTEM_SENDER_PREFIXES } from "@/lib/autoContacts";
 
 const PAGE = 100;
-const SORTABLE = ["firstName", "lastName", "name", "email", "phone", "company", "status", "doNotContact"] as const;
+const SORTABLE = ["firstName", "lastName", "name", "email", "phone", "company", "status", "doNotContact", "autoEmails", "autoPhones"] as const;
 const REQUIRED = new Set(["email", "doNotContact"]); // non-null columns can't take a nulls ordering
 
 // GET /api/contacts?q=&page=&sort=&dir=&businessId=(id|none)&dnc=(yes|no)&hideAuto=1
+//   &autoReplies=1 (only people who sent auto-replies)&withInfo=1 (only those with extracted emails/phones)
 export async function GET(req: Request) {
   if (!(await getSession())) return new Response("Unauthorized", { status: 401 });
   const p = new URL(req.url).searchParams;
@@ -18,7 +20,7 @@ export async function GET(req: Request) {
 
   const and: Prisma.ContactWhereInput[] = [];
   if (q) and.push({
-    OR: (["name", "firstName", "lastName", "email", "company", "phone", "status"] as const)
+    OR: (["name", "firstName", "lastName", "email", "company", "phone", "status", "autoEmails", "autoPhones"] as const)
       .map(f => ({ [f]: { contains: q } })),
   });
   const biz = p.get("businessId");
@@ -26,6 +28,11 @@ export async function GET(req: Request) {
   if (p.get("dnc") === "yes") and.push({ doNotContact: true });
   if (p.get("dnc") === "no") and.push({ doNotContact: false });
   if (p.get("hideAuto")) and.push(...AUTOMATED.map(a => ({ email: { not: { contains: a } } })));
+  if (p.get("autoReplies")) {
+    and.push({ messages: { some: { category: "auto" } } });
+    and.push(...SYSTEM_SENDER_PREFIXES.map(s => ({ NOT: { email: { startsWith: s } } })));
+  }
+  if (p.get("withInfo")) and.push({ OR: [{ autoEmails: { not: null } }, { autoPhones: { not: null } }] });
   const where: Prisma.ContactWhereInput = { AND: and };
 
   const orderBy = [
@@ -38,7 +45,7 @@ export async function GET(req: Request) {
       where, orderBy, skip: (page - 1) * PAGE, take: PAGE,
       select: {
         id: true, email: true, name: true, firstName: true, lastName: true, phone: true, company: true,
-        status: true, businessId: true, doNotContact: true, dncReason: true,
+        status: true, businessId: true, doNotContact: true, dncReason: true, autoEmails: true, autoPhones: true,
       },
     }),
     db.contact.count({ where }),

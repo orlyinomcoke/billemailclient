@@ -222,3 +222,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .dnc-toggle.yes:hover { background: #b91c1c; }
 .ct-foot { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 10px 20px; border-top: 1px solid var(--line); }
 .ct-foot .muted { margin-right: auto; font-size: 13px; }
+
+/* Contacts from Auto Replies */
+.ct-note { margin: -4px 0 0; font-size: 13px; color: var(--muted); max-width: 760px; }
+.cell.wide { max-width: 320px; }
+.email-text { display: inline-block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }

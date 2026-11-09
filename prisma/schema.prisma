@@ -44,6 +44,8 @@ model Contact {
   status       String?   @db.VarChar(64)
   extractedAt  DateTime? // when details were last auto-extracted
   mailRule     String?   @db.VarChar(16)  // "inbox" | "newsletter": manual override for where this person's mail goes
+  autoEmails   String?   @db.Text         // other emails found in this person's auto-replies (comma-separated, editable)
+  autoPhones   String?   @db.Text         // phone numbers found in this person's auto-replies (comma-separated, editable)
   doNotContact Boolean   @default(false)
   dncReason    String?   @db.Text
   dncSetAt     DateTime?
@@ -72,6 +74,7 @@ model Message {
   isRead         Boolean   @default(false)
   direction      String    @db.VarChar(8)  // "in" | "out"
   category       String?   @db.VarChar(16) // "inbox" | "newsletter" | "auto" (null = not classified yet)
+  autoScanned    Boolean   @default(false) // auto-reply already scanned for contact details
   contactId      String?
   contact        Contact?  @relation(fields: [contactId], references: [id])
   businessId     String?
