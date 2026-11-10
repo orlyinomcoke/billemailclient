@@ -8,7 +8,11 @@ const FOLDERS = [
   { id: "inbox", direction: "in" as const },
   { id: "sentitems", direction: "out" as const },
 ];
-const deltaStart = (folder: string) => `/users/${MAILBOX}/mailFolders/${folder}/messages/delta?$select=${SELECT}`;
+// IMPORT_SINCE=YYYY-MM-DD limits the mailbox import to mail received on/after that date.
+// It applies when a folder's import starts; to change it later, clear that folder's SyncState row.
+const IMPORT_SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.IMPORT_SINCE ?? "") ? process.env.IMPORT_SINCE : null;
+const deltaStart = (folder: string) => `/users/${MAILBOX}/mailFolders/${folder}/messages/delta?$select=${SELECT}` +
+  (IMPORT_SINCE ? `&$filter=receivedDateTime+ge+${IMPORT_SINCE}T00:00:00Z` : "");
 // A saved link is a finished checkpoint once Graph hands back a deltatoken (vs. a skiptoken mid-import)
 const isComplete = (link?: string | null) => !!link && /deltatoken=/i.test(link);
 
