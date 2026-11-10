@@ -122,14 +122,29 @@ export async function syncLatest(n: number) {
   return { synced: newest.length, removed: removed.count };
 }
 
+// Save one message; a single bad message is logged and skipped so it can never block the import.
 async function upsertMessage(m: any, direction: "in" | "out") {
+  try {
+    await saveMessage(m, direction);
+  } catch (e: any) {
+    console.error(`Sync: skipped message ${String(m?.id).slice(-24)} (${m?.receivedDateTime}): ${e?.code ?? ""} ${String(e?.message ?? e).split("\n").filter(Boolean).pop()}`);
+  }
+}
+
+// MySQL column limits (see schema.prisma): trim instead of failing the insert
+const clip = (s: string | null | undefined, max: number) => (s == null ? s : s.length > max ? s.slice(0, max) : s);
+const MAX_EMAIL = 255;
+
+async function saveMessage(m: any, direction: "in" | "out") {
   const from = m.from?.emailAddress ?? {};
   const addrs = (list: any[] | undefined): string[] =>
     (list ?? []).map((r: any) => r?.emailAddress?.address?.toLowerCase()).filter(Boolean);
   const to = addrs(m.toRecipients);
   const cc = addrs(m.ccRecipients);
-  const otherEmail = direction === "in" ? from.address?.toLowerCase() : to[0];
-  const otherName = direction === "in" ? from.name : undefined;
+  const rawOther: string | undefined = direction === "in" ? from.address?.toLowerCase() : to[0];
+  // Over-long addresses (rare, malformed) can't be a contact key; keep the message without a contact
+  const otherEmail = rawOther && rawOther.length <= MAX_EMAIL ? rawOther : undefined;
+  const otherName = clip(direction === "in" ? from.name : undefined, 512);
 
   let contactId: string | null = null, businessId: string | null = null;
   if (otherEmail) {
@@ -142,10 +157,10 @@ async function upsertMessage(m: any, direction: "in" | "out") {
   }
 
   const data = {
-    conversationId: m.conversationId, subject: m.subject || "(no subject)",
-    fromEmail: from.address?.toLowerCase() ?? "", fromName: from.name,
+    conversationId: clip(m.conversationId, 255), subject: clip(m.subject || "(no subject)", 60_000)!,
+    fromEmail: clip(from.address?.toLowerCase() ?? "", MAX_EMAIL)!, fromName: clip(from.name, 512),
     toEmails: to, ccEmails: cc, bodyHtml: capBody(m.body?.content ?? ""),
-    preview: m.bodyPreview ?? "", receivedAt: new Date(m.receivedDateTime),
+    preview: clip(m.bodyPreview ?? "", 60_000)!, receivedAt: new Date(m.receivedDateTime),
     isRead: !!m.isRead, direction, contactId,
   };
   await db.message.upsert({
