@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { scheduleSheetPush } from "@/lib/sheets";
 
 const TEXT_FIELDS = ["name", "firstName", "lastName", "phone", "company", "status", "autoEmails", "autoPhones"] as const;
 
@@ -26,5 +27,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   });
   if (b.businessId !== undefined && b.applyToMessages)
     await db.message.updateMany({ where: { contactId: id }, data: { businessId: b.businessId || null } });
+  scheduleSheetPush(); // keep the Google Sheet in step with edits
   return Response.json(c);
 }

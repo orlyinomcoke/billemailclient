@@ -70,3 +70,13 @@ export async function scanAutoReplies(limit = 500) {
     lock.autoScanRunning = false;
   }
 }
+
+// Who appears on "Contacts from Auto Replies" (and in the Google Sheet)
+export function autoContactWhere(withInfo: boolean) {
+  const and: object[] = [
+    { messages: { some: { category: "auto" } } },
+    ...SYSTEM_SENDER_PREFIXES.map(s => ({ NOT: { email: { startsWith: s } } })),
+  ];
+  if (withInfo) and.push({ OR: [{ autoEmails: { not: null } }, { autoPhones: { not: null } }] });
+  return { AND: and };
+}

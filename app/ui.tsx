@@ -18,6 +18,7 @@ export const I = {
   layers: "M12 3 3 8l9 5 9-5zM3 13l9 5 9-5",
   news: "M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5M8 17h3",
   auto: "M12 7v5l3 2M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3v5h5",
+  sheet: "M4 4h16v16H4zM4 9h16M4 14h16M9 4v16",
   users: "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM22 19v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8",
 };
 export function Icon({ d, size = 16 }: { d: string; size?: number }) {

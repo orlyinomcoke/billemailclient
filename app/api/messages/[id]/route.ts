@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { scheduleSheetPush } from "@/lib/sheets";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -38,6 +39,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (applyToContact && m.contactId) {
     await db.contact.update({ where: { id: m.contactId }, data: { businessId: businessId || null } });
     await db.message.updateMany({ where: { contactId: m.contactId }, data: { businessId: businessId || null } });
+    scheduleSheetPush();
   }
   return Response.json({ ok: true });
 }

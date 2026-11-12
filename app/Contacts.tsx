@@ -11,6 +11,11 @@ type Contact = {
 type Patch = Partial<Contact> & { applyToMessages?: boolean };
 type ColKey = keyof Contact | "business";
 
+type SheetStatus = {
+  configured: boolean; url: string | null; serviceAccount: string | null;
+  lastPushedAt: string | null; lastError: string | null; rows: number | null; pending: boolean;
+};
+
 // "all" = the Contacts page; "auto" = Contacts from Auto Replies
 export type ContactsMode = "all" | "auto";
 
@@ -93,6 +98,8 @@ export default function Contacts({ biz, mode = "all" }: { biz: Business[]; mode?
   const [toggle, setToggle] = useState(true);
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: isAuto ? "email" : "firstName", dir: "asc" });
   const [extractMsg, setExtractMsg] = useState("");
+  const [sheet, setSheet] = useState<SheetStatus | null>(null);
+  const [sheetBusy, setSheetBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +134,21 @@ export default function Contacts({ biz, mode = "all" }: { biz: Business[]; mode?
     finally { extracting.current = false; }
   }, []);
   useEffect(() => { runExtract(); }, [runExtract]);
+
+  // Google Sheet status (Auto Replies page only); refreshes so edits show as synced a few seconds later
+  useEffect(() => {
+    if (!isAuto) return;
+    const get = () => fetch("/api/sheet").then(r => r.json()).then(setSheet).catch(() => {});
+    get();
+    const t = setInterval(get, 10_000);
+    return () => clearInterval(t);
+  }, [isAuto]);
+  async function syncSheet() {
+    setSheetBusy(true);
+    const r = await fetch("/api/sheet", { method: "POST" }).then(r => r.json()).catch(() => null);
+    if (r?.status) setSheet(r.status);
+    setSheetBusy(false);
+  }
 
   async function save(c: Contact, patch: Patch) {
     const { applyToMessages, ...fields } = patch;
@@ -195,6 +217,20 @@ export default function Contacts({ biz, mode = "all" }: { biz: Business[]; mode?
           <span className="muted">{total.toLocaleString()} {total === 1 ? text.one : text.many}</span>
           {extractMsg && <span className="pill"><span className="spin"><Icon d={I.refresh} size={12} /></span>{extractMsg}</span>}
         </div>
+        {isAuto && sheet?.configured && (
+          <div className={`sheet-bar ${sheet.lastError ? "bad" : ""}`}>
+            <Icon d={I.sheet} size={15} />
+            <span>
+              Google Sheet:{" "}
+              {sheet.lastError ? <>not synced — {sheet.lastError}</>
+                : sheetBusy || sheet.pending ? "syncing…"
+                : sheet.lastPushedAt ? <>synced {new Date(sheet.lastPushedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {sheet.rows?.toLocaleString()} rows</>
+                : "connected"}
+            </span>
+            {sheet.url && <a href={sheet.url} target="_blank" rel="noreferrer">Open sheet</a>}
+            <button onClick={syncSheet} disabled={sheetBusy}>Sync now</button>
+          </div>
+        )}
         {isAuto && (
           <p className="ct-note">
             People who sent an out-of-office or automatic reply, with any other email addresses and phone numbers

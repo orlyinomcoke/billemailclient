@@ -47,6 +47,20 @@ Each call imports ~20 seconds' worth of mail; while someone has the app open it 
 ### 5. Updates
 Push to `main` on GitHub, then redeploy from hPanel (or enable auto-deploy).
 
+## Google Sheet for Contacts from Auto Replies (optional)
+MailHub can keep a tab named **Auto Reply Contacts** in a Google Sheet up to date (people whose
+auto-replies contained other emails/phone numbers). It updates after new auto-replies are scanned,
+a few seconds after any edit in the app, and on **Sync now**. The app is the source of truth:
+the tab is rewritten on each update, so edit in MailHub, not in the sheet.
+
+1. console.cloud.google.com → create a project → **APIs & Services → Library → Google Sheets API → Enable**.
+2. **IAM & Admin → Service Accounts → Create service account** (no roles needed) →
+   open it → **Keys → Add key → Create new key → JSON** (downloads a .json file).
+3. Create the Google Sheet → **Share** → add the service account's email (…@….iam.gserviceaccount.com) as **Editor**.
+4. Environment variables:
+   - `GOOGLE_SERVICE_ACCOUNT_JSON` — the key file contents, base64-encoded on one line (`base64 -i key.json`)
+   - `GOOGLE_SHEET_ID` — the sheet's URL or ID
+
 ## Azure setup (once, needs the client's M365 admin)
 1. entra.microsoft.com → App registrations → New registration ("MailHub").
 2. API permissions → Microsoft Graph → **Application**: `Mail.ReadWrite`, `Mail.Send` → **Grant admin consent**.

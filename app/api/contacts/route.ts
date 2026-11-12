@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { AUTOMATED } from "@/lib/extract";
-import { SYSTEM_SENDER_PREFIXES } from "@/lib/autoContacts";
+import { autoContactWhere } from "@/lib/autoContacts";
 
 const PAGE = 100;
 const SORTABLE = ["firstName", "lastName", "name", "email", "phone", "company", "status", "doNotContact", "autoEmails", "autoPhones"] as const;
@@ -28,10 +28,7 @@ export async function GET(req: Request) {
   if (p.get("dnc") === "yes") and.push({ doNotContact: true });
   if (p.get("dnc") === "no") and.push({ doNotContact: false });
   if (p.get("hideAuto")) and.push(...AUTOMATED.map(a => ({ email: { not: { contains: a } } })));
-  if (p.get("autoReplies")) {
-    and.push({ messages: { some: { category: "auto" } } });
-    and.push(...SYSTEM_SENDER_PREFIXES.map(s => ({ NOT: { email: { startsWith: s } } })));
-  }
+  if (p.get("autoReplies")) and.push(autoContactWhere(false));
   if (p.get("withInfo")) and.push({ OR: [{ autoEmails: { not: null } }, { autoPhones: { not: null } }] });
   const where: Prisma.ContactWhereInput = { AND: and };
 
