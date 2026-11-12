@@ -100,5 +100,6 @@ model SentLog {
 model SyncState {
   id        String   @id @db.VarChar(32)
   deltaLink String?  @db.Text
+  scope     String?  @db.VarChar(32) // "all" or "since:YYYY-MM-DD": the range this checkpoint belongs to
   updatedAt DateTime @updatedAt
 }

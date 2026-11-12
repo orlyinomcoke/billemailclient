@@ -8,9 +8,11 @@ const FOLDERS = [
   { id: "inbox", direction: "in" as const },
   { id: "sentitems", direction: "out" as const },
 ];
-// IMPORT_SINCE=YYYY-MM-DD limits the mailbox import to mail received on/after that date.
-// It applies when a folder's import starts; to change it later, clear that folder's SyncState row.
+// IMPORT_SINCE=YYYY-MM-DD limits the mailbox import to mail received on/after that date (blank = everything).
+// Each checkpoint remembers its range ("scope"); if the setting changes, that folder's import restarts
+// with the new range (already-saved mail is matched, not duplicated).
 const IMPORT_SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.IMPORT_SINCE ?? "") ? process.env.IMPORT_SINCE : null;
+const SCOPE = IMPORT_SINCE ? `since:${IMPORT_SINCE}` : "all";
 const deltaStart = (folder: string) => `/users/${MAILBOX}/mailFolders/${folder}/messages/delta?$select=${SELECT}` +
   (IMPORT_SINCE ? `&$filter=receivedDateTime+ge+${IMPORT_SINCE}T00:00:00Z` : "");
 // A saved link is a finished checkpoint once Graph hands back a deltatoken (vs. a skiptoken mid-import)
@@ -30,7 +32,8 @@ export async function syncMailbox(budgetMs = 20_000) {
   const deadline = Date.now() + budgetMs;
   let synced = 0, done = true;
   try {
-    const states = await db.syncState.findMany();
+    // Checkpoints from a different range (or saved before ranges were tracked) don't count
+    const states = (await db.syncState.findMany()).filter(s => s.scope === SCOPE);
     const allComplete = FOLDERS.every(f => isComplete(states.find(s => s.id === f.id)?.deltaLink));
     // While the big import is still running, grab brand-new mail first so it shows up right away
     if (!allComplete) synced += await catchUpNewest();
@@ -61,7 +64,7 @@ export async function syncMailbox(budgetMs = 20_000) {
         const next: string | null = page["@odata.nextLink"] ?? null;
         const checkpoint = next ?? page["@odata.deltaLink"];
         if (checkpoint) await db.syncState.upsert({
-          where: { id: f.id }, create: { id: f.id, deltaLink: checkpoint }, update: { deltaLink: checkpoint },
+          where: { id: f.id }, create: { id: f.id, deltaLink: checkpoint, scope: SCOPE }, update: { deltaLink: checkpoint, scope: SCOPE },
         });
         url = next;
       }
@@ -122,11 +125,16 @@ export async function syncLatest(n: number) {
   return { synced: newest.length, removed: removed.count };
 }
 
-// Save one message; a single bad message is logged and skipped so it can never block the import.
+// Prisma errors caused by one message's own data (too long, bad value, etc.). Only these are skipped;
+// anything else (database full, connection lost, no permission) stops the chunk so nothing is silently lost.
+const DATA_ERRORS = new Set(["P2000", "P2005", "P2006", "P2007", "P2011", "P2012", "P2019", "P2020", "P2023"]);
+
+// Save one message; a message with bad data is logged and skipped so it can never block the import.
 async function upsertMessage(m: any, direction: "in" | "out") {
   try {
     await saveMessage(m, direction);
   } catch (e: any) {
+    if (!DATA_ERRORS.has(e?.code)) throw e;
     console.error(`Sync: skipped message ${String(m?.id).slice(-24)} (${m?.receivedDateTime}): ${e?.code ?? ""} ${String(e?.message ?? e).split("\n").filter(Boolean).pop()}`);
   }
 }
