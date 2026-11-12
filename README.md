@@ -38,7 +38,7 @@ After deploying, open `https://YOUR-SITE/api/health` — it reports whether the 
 the tables exist, an admin exists, and which environment variables are set (yes/no only).
 
 ### 4. Keep mail syncing when nobody has the app open
-hPanel → **Advanced → Cron Jobs** → every 5 minutes:
+hPanel → **Advanced → Cron Jobs** → every minute (or every 5 minutes):
 ```
 curl -s -X POST "https://YOUR-SITE/api/sync?key=YOUR_CRON_SECRET"
 ```

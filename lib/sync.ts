@@ -3,7 +3,7 @@ import { db } from "./db";
 import { graph, MAILBOX } from "./graph";
 import { classifyPending } from "./classify";
 
-const SELECT = "id,conversationId,subject,from,toRecipients,ccRecipients,body,bodyPreview,receivedDateTime,isRead";
+export const SELECT = "id,conversationId,subject,from,toRecipients,ccRecipients,body,bodyPreview,receivedDateTime,isRead";
 const FOLDERS = [
   { id: "inbox", direction: "in" as const },
   { id: "sentitems", direction: "out" as const },
@@ -130,7 +130,7 @@ export async function syncLatest(n: number) {
 const DATA_ERRORS = new Set(["P2000", "P2005", "P2006", "P2007", "P2011", "P2012", "P2019", "P2020", "P2023"]);
 
 // Save one message; a message with bad data is logged and skipped so it can never block the import.
-async function upsertMessage(m: any, direction: "in" | "out") {
+export async function upsertMessage(m: any, direction: "in" | "out") {
   try {
     await saveMessage(m, direction);
   } catch (e: any) {
